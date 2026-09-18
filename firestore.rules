@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ★ 관리자(선생님) 구글 이메일을 여기에 적으세요. .env 의 VITE_ADMIN_EMAILS 와 같게!
+    function adminEmails() {
+      return ['your-email@gmail.com'];
+    }
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.email.lower() in adminEmails(); }
+    function isApproved() {
+      return isAdmin() ||
+        (signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved');
+    }
+    function isOwner(data) { return signedIn() && data.ownerUid == request.auth.uid; }
+
+    // 이용자 정보: 본인은 읽기·만들기 가능, 승인(status)/역할(role)은 관리자만 바꿀 수 있음
+    match /users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if signedIn() && request.auth.uid == uid &&
+        (isAdmin() || (request.resource.data.status == 'pending' && request.resource.data.role == 'member'));
+      allow update: if isAdmin() ||
+        (signedIn() && request.auth.uid == uid &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'role']));
+      allow delete: if isAdmin();
+    }
+
+    // 왼쪽 탭: 로그인한 사람은 읽을 수 있고, 만들기·수정·삭제는 관리자만
+    match /tabs/{tabId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // 나이스 학사일정 API 설정 (settings/neis): 승인된 사람은 읽기, 관리자만 바꾸기
+    match /settings/{docId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    // 달력에 직접 넣은 일정 (events): 승인된 사람은 읽기·만들기, 작성자·관리자만 수정·삭제
+    match /events/{eventId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isAdmin() || isOwner(resource.data);
+    }
+
+    // 하루 업로드 총량 기록 (stats/uploads_YYYY-MM-DD)
+    match /stats/{docId} {
+      allow read, write: if isApproved();
+    }
+
+    // 자료(링크·웹앱·메모): 공개범위에 따라 읽기, 작성자·관리자만 수정·삭제
+    match /items/{itemId} {
+      allow read: if resource.data.visibility == 'public'
+        || isAdmin()
+        || isOwner(resource.data)
+        || (resource.data.visibility == 'approved' && isApproved());
+      allow create: if isApproved() && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.visibility in ['private', 'approved', 'public'];
+      allow update, delete: if isAdmin() || isOwner(resource.data);
+    }
+  }
+}

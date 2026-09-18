@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 링크 카드 사진: 로그인한 사람은 볼 수 있고, 올리기는 본인 폴더에만 (5MB, 이미지만)
+    match /images/{uid}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+    // 파일 모음: 종류 제한 없음, 파일 하나 500MB 까지 (FilesTab.jsx 의 MAX_FILE_MB 와 같게)
+    match /files/{uid}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 500 * 1024 * 1024;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
