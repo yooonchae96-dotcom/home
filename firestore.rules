@@ -4,7 +4,7 @@ service cloud.firestore {
 
     // ★ 관리자(선생님) 구글 이메일을 여기에 적으세요. .env 의 VITE_ADMIN_EMAILS 와 같게!
     function adminEmails() {
-      return ['your-email@gmail.com'];
+      return ['yooonchae96@gmail.com', 'yooonchae96@gamil.com'];
     }
     function signedIn() { return request.auth != null; }
     function isAdmin() { return signedIn() && request.auth.token.email.lower() in adminEmails(); }

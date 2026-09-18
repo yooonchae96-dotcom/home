@@ -33,27 +33,48 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
-      if (u) await ensureUserDoc(u).catch(console.error)
+      if (u) {
+        // 관리자 이메일이면 즉시 profile 기본값을 승인/관리자로 세팅해 딜레이 및 차단 방지
+        const admin = isAdminEmail(u.email)
+        setProfile({
+          uid: u.uid,
+          email: u.email,
+          name: u.displayName || '',
+          photo: u.photoURL || '',
+          role: admin ? 'admin' : 'member',
+          status: admin ? 'approved' : 'pending',
+          agreedTerms: true,
+        })
+        await ensureUserDoc(u).catch(console.error)
+      } else {
+        setProfile(null)
+      }
       setUser(u)
-      if (!u) setProfile(null)
     })
   }, [])
 
   useEffect(() => {
     if (!user) return
     const ref = doc(db, 'users', user.uid)
-    return onSnapshot(ref, (snap) => {
-      const data = snap.data() || {}
-      setProfile({
-        uid: user.uid,
-        email: user.email,
-        name: user.displayName,
-        photo: user.photoURL,
-        role: data.role || 'member',
-        status: data.status || 'pending',
-        agreedTerms: !!data.agreedTerms,
-      })
-    })
+    return onSnapshot(
+      ref,
+      (snap) => {
+        const data = snap.data() || {}
+        const admin = isAdminEmail(user.email) || data.role === 'admin'
+        setProfile({
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName || '',
+          photo: user.photoURL || '',
+          role: admin ? 'admin' : data.role || 'member',
+          status: admin ? 'approved' : data.status || 'pending',
+          agreedTerms: !!data.agreedTerms,
+        })
+      },
+      (err) => {
+        console.warn('users doc snapshot warning:', err)
+      },
+    )
   }, [user])
 
   // 로그인 화면에서 약관에 동의한 뒤에만 호출되므로, 동의 기록도 함께 남깁니다.
@@ -63,11 +84,14 @@ export function AuthProvider({ children }) {
   }
   const logout = () => signOut(auth)
 
+  const isUserAdmin = Boolean(user?.email && isAdminEmail(user.email)) || profile?.role === 'admin'
+  const isUserApproved = isUserAdmin || profile?.status === 'approved'
+
   const value = {
     user,
     profile,
-    isAdmin: profile?.role === 'admin',
-    isApproved: profile?.status === 'approved',
+    isAdmin: isUserAdmin,
+    isApproved: isUserApproved,
     login,
     logout,
   }

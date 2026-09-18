@@ -22,12 +22,12 @@ export default function App() {
 
 // 로그인 → 승인 → 홈페이지 순서로 문을 엽니다.
 function Gate() {
-  const { user, profile, isApproved } = useAuth()
+  const { user, profile, isApproved, isAdmin } = useAuth()
   if (user === undefined) return <LoadingPage />
   if (!user) return <LoginPage />
+  if (isAdmin || isApproved) return <Home />
   if (!profile) return <LoadingPage />
-  if (!isApproved) return <PendingPage />
-  return <Home />
+  return <PendingPage />
 }
 
 // 처음 한 번, 관리자가 들어왔는데 탭이 하나도 없으면 기본 탭 3개를 만들어 줍니다.

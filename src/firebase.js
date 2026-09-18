@@ -19,10 +19,14 @@ export const googleProvider = new GoogleAuthProvider()
 export const db = getFirestore(app)
 export const storage = getStorage(app)
 
-export const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || '')
+const rawAdminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '')
   .split(',')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean)
+
+// 기본 관리자 계정 (오타 방지 포함)
+const defaultAdmins = ['yooonchae96@gmail.com', 'yooonchae96@gamil.com']
+export const ADMIN_EMAILS = Array.from(new Set([...defaultAdmins, ...rawAdminEmails]))
 
 export function isAdminEmail(email) {
   return !!email && ADMIN_EMAILS.includes(email.toLowerCase())
